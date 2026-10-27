@@ -1,0 +1,14 @@
+# Dependency directories
+node_modules/
+
+# Environment files and secrets
+.env*
+!.env.example
+
+# Temporary and backup files
+*.bak*
+*.backup*
+*~
+
+# Local media assets
+data/mvp-media/

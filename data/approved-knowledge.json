@@ -1,0 +1,8 @@
+[
+  {"topic":"institutional","title":"Identidade e endereço","content":"Sofás May. Avenida dos Estados, 5815, Jardim Monte Líbano, Santo André - SP, CEP 09290-520. Site oficial: https://sofasmay.com.br.","priority":100},
+  {"topic":"hours","title":"Horário de funcionamento","content":"Segunda a sábado, 09h às 19h. Domingo, 10h às 15h. Feriados, 09h às 17h.","priority":90},
+  {"topic":"delivery","title":"Entrega e frete","content":"Entrega por transporte próprio. Frete conforme região e distância. Atendimento em Santo André e regiões próximas, aproximadamente até 120 km. O valor deve ser confirmado pela loja.","priority":90},
+  {"topic":"deadline","title":"Prazos gerais","content":"Pronta-entrega: até 7 dias corridos, podendo ser antes. Sob encomenda: até 30 dias corridos, podendo ser antes. A disponibilidade e o prazo do produto específico devem ser confirmados.","priority":90},
+  {"topic":"payment","title":"Formas de pagamento","content":"Cartão de débito, cartão de crédito, Pix e dinheiro. Parcelamento e descontos precisam de condição estruturada ou confirmação do consultor.","priority":90},
+  {"topic":"warranty","title":"Garantia geral","content":"Garantia de 6 meses para defeitos de fabricação, mediante avaliação da loja. Não cobre mau uso, acidentes, uso inadequado, desgaste natural, manchas, rasgos, alterações ou reparos por terceiros.","priority":90}
+]

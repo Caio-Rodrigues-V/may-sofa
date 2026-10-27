@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  app:
+    image: sofas-may-agent:master-prompt-20261003
+    env_file: .env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_KEY_PREFIX: "sofas-may:"
+      SUPABASE_TABLE_PREFIX: sofas_may_
+      SUPABASE_CATALOG_BUCKET: sofas-may-catalog
+    networks: [sofas-may-net, Smart]
+    deploy:
+      replicas: 1
+      restart_policy: { condition: on-failure }
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.sofasmay.rule=Host(`api.smarttrigo.com`) && PathPrefix(`/sofas-may`)"
+        - "traefik.http.routers.sofasmay.entrypoints=websecure"
+        - "traefik.http.routers.sofasmay.service=sofasmay"
+        - "traefik.http.routers.sofasmay.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.sofasmay.middlewares=sofasmay-strip"
+        - "traefik.http.middlewares.sofasmay-strip.stripprefix.prefixes=/sofas-may"
+        - "traefik.http.services.sofasmay.loadbalancer.server.port=3000"
+        - "traefik.docker.network=Smart"
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    volumes: [sofas_may_redis_data:/data]
+    networks: [sofas-may-net]
+    deploy:
+      replicas: 1
+      restart_policy: { condition: on-failure }
+
+volumes:
+  sofas_may_redis_data:
+networks:
+  sofas-may-net: { driver: overlay }
+  Smart: { external: true }

@@ -1,0 +1,13 @@
+{
+  "name": "sofas-may-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test",
+    "audit:isolation": "node scripts/audit-isolation.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": { "ioredis": "^5.4.2" }
+}
