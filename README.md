@@ -11,3 +11,13 @@ Projeto independente de atendimento da Sofás May. A arquitetura técnica deriva
 5. Cadastre produtos, variantes, preços e mídias com `review_status=approved` somente após validação humana.
 
 O agente permanece desabilitado por padrão. Não defina `AGENT_ENABLED=true` antes de validar WTS, CRM, Supabase, Redis e OpenAI em ambiente isolado.
+
+## Painel Smart Trigo
+
+O agente é editado pelo painel (tenant `sofas-may`, prefixo `sofas_may_`):
+
+- **Prompt:** lido de `sofas_may_prompt_versions` (`active = true`, mais recente) e guardado em memória. O painel chama `POST /internal/reload-prompt` (Bearer `WEBHOOK_SECRET`) ao publicar. `SYSTEM-PROMPT.txt` é só fallback se o Supabase falhar.
+- **Conhecimento:** com `KNOWLEDGE_SEMANTIC_ENABLED=true`, busca semântica via `sofas_may_match_knowledge` nos cards que o painel salva com embedding; cai para busca por palavras se falhar.
+- **Catálogo, preços e mídias:** lidos a cada mensagem, então aprovações no painel valem na hora.
+
+Aplique `supabase/migrations/002_painel_compat.sql` e rode `npm run backfill:embeddings` para gerar embeddings dos cards antigos. O `WEBHOOK_SECRET` do agente deve ser igual ao `WEBHOOK_SECRET_SOFAS_MAY` do painel.

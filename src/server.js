@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { assertIsolatedConfiguration, config, dependencyStatus } from './config.js';
 import { ensureRedis, listRecoverableHandoffs, markHuman, withSessionLock } from './redis.js';
-import { handleCustomerMessage, recoverPendingHandoff } from './agent.js';
+import { getPromptVersion, handleCustomerMessage, recoverPendingHandoff, reloadSystemPrompt } from './agent.js';
 import { startHandoffRecovery, stopHandoffRecovery } from './handoff-recovery.js';
 import { getLatestCustomerMessage, getWtsContact, getWtsSession, isHumanOutbound } from './wts.js';
 
@@ -54,7 +54,12 @@ const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
     if (request.method === 'GET' && url.pathname === '/health') {
-      json(response, 200, { status: 'ok', agent: 'sofas-may', enabled: config.enabled, promptVersion: config.promptVersion }); return;
+      json(response, 200, { status: 'ok', agent: 'sofas-may', enabled: config.enabled, promptVersion: getPromptVersion() }); return;
+    }
+    if (request.method === 'POST' && url.pathname === '/internal/reload-prompt') {
+      if (!authorized(request, url)) { json(response, 401, { error: 'unauthorized' }); return; }
+      const result = await reloadSystemPrompt();
+      json(response, 200, { status: 'reloaded', ...result }); return;
     }
     if (request.method === 'GET' && url.pathname === '/ready') {
       const dependencies = dependencyStatus();
@@ -85,6 +90,7 @@ const server = http.createServer(async (request, response) => {
 });
 
 await ensureRedis();
+if (config.supabaseUrl && config.supabaseKey) await reloadSystemPrompt();
 if (config.enabled) {
   startHandoffRecovery({
     listDue: () => listRecoverableHandoffs(),

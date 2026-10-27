@@ -6,8 +6,13 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test",
-    "audit:isolation": "node scripts/audit-isolation.js"
+    "audit:isolation": "node scripts/audit-isolation.js",
+    "backfill:embeddings": "node scripts/backfill-knowledge-embeddings.js"
   },
-  "engines": { "node": ">=20" },
-  "dependencies": { "ioredis": "^5.4.2" }
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ioredis": "^5.4.2"
+  }
 }

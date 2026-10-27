@@ -82,3 +82,43 @@ test('prompt contains no catalog model from the template', () => {
   const prompt = readFileSync(new URL('../SYSTEM-PROMPT.txt', import.meta.url), 'utf8');
   assert.doesNotMatch(prompt, /Milano|Veneza|Atlanta|Bahamas|Póllo|Fonte do Sofá/i);
 });
+
+test('prompt reload uses the active panel version and keeps the file fallback on failure', async () => {
+  const { getPromptVersion, getSystemPrompt, reloadSystemPrompt } = await import('../src/agent.js');
+  const fallback = getSystemPrompt();
+  const failed = await reloadSystemPrompt({ loadPrompt: async () => { throw new Error('offline'); } });
+  assert.equal(failed.success, false);
+  assert.equal(getSystemPrompt(), fallback);
+  const loaded = await reloadSystemPrompt({ loadPrompt: async () => ({ version: 'painel-v2', prompt_text: 'Prompt do painel' }) });
+  assert.equal(loaded.source, 'supabase');
+  assert.equal(getSystemPrompt(), 'Prompt do painel');
+  assert.equal(getPromptVersion(), 'painel-v2');
+});
+
+test('semantic knowledge search calls the tenant RPC and filters prices', async () => {
+  const { findKnowledge } = await import('../src/supabase.js');
+  const previous = { semantic: process.env.KNOWLEDGE_SEMANTIC_ENABLED, key: config.openaiKey, url: config.supabaseUrl };
+  process.env.KNOWLEDGE_SEMANTIC_ENABLED = 'true';
+  config.openaiKey = 'test-key';
+  config.supabaseUrl = 'https://example.supabase.co';
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push(url);
+    if (url.includes('/embeddings')) return new Response(JSON.stringify({ data: [{ embedding: [0.1, 0.2] }] }));
+    assert.equal(JSON.parse(options.body).p_limit, 6);
+    return new Response(JSON.stringify([
+      { topic: 'entrega', title: 'Prazo', content: 'Entregamos em até 15 dias úteis.', similarity: 0.8 },
+      { topic: 'oferta', title: 'Promo', content: 'Por apenas R$ 999 à vista.', similarity: 0.7 },
+    ]));
+  };
+  try {
+    const results = await findKnowledge('qual o prazo de entrega', { fetchImpl });
+    assert.deepEqual(results.map((item) => item.title), ['Prazo']);
+    assert.ok(calls.some((url) => url.endsWith('/rest/v1/rpc/sofas_may_match_knowledge')));
+  } finally {
+    process.env.KNOWLEDGE_SEMANTIC_ENABLED = previous.semantic;
+    if (previous.semantic === undefined) delete process.env.KNOWLEDGE_SEMANTIC_ENABLED;
+    config.openaiKey = previous.key;
+    config.supabaseUrl = previous.url;
+  }
+});

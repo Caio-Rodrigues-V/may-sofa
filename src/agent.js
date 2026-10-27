@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { config } from './config.js';
-import { findCatalog, findCommercialRules, findKnowledge, findProductLinkKnowledge, logEvent, mediaUrl, normalize } from './supabase.js';
+import { findCatalog, findCommercialRules, findActivePrompt, findKnowledge, findProductLinkKnowledge, logEvent, mediaUrl, normalize } from './supabase.js';
 import { getSession, markHuman, nextRoundRobinUser, saveSession, withHandoffOperationLock } from './redis.js';
 import { confirmTransferDestination, getWtsSession, isHumanOwned, sendInternalNote, sendMedia, sendText, sessionDepartmentId, sessionDepartmentName, sessionIsHumanOwned, transfer } from './wts.js';
 import { addCardNoteOnce, addCardTag, assignResponsible, ensureCard, moveCard, updateDescription } from './crm.js';
@@ -11,7 +11,32 @@ import { settleAgentDependencies } from './dependencies.js';
 import { commercialClosingAction, isBusinessHours } from './business-hours.js';
 import { deliverProductMedia, selectProductMedia } from './media.js';
 
-const systemPrompt = fs.readFileSync(new URL('../SYSTEM-PROMPT.txt', import.meta.url), 'utf8');
+// O prompt ativo vem de prompt_versions (editado pelo painel); SYSTEM-PROMPT.txt é só fallback.
+const fallbackPrompt = fs.readFileSync(new URL('../SYSTEM-PROMPT.txt', import.meta.url), 'utf8');
+let activePrompt = { text: fallbackPrompt, version: config.promptVersion, source: 'file' };
+
+export function getSystemPrompt() {
+  return activePrompt.text;
+}
+
+export function getPromptVersion() {
+  return activePrompt.version;
+}
+
+export async function reloadSystemPrompt({ loadPrompt = findActivePrompt } = {}) {
+  try {
+    const record = await loadPrompt();
+    if (record?.prompt_text?.trim()) {
+      activePrompt = { text: record.prompt_text, version: record.version, source: 'supabase' };
+      console.log(JSON.stringify({ level: 'info', event: 'prompt_reloaded', version: activePrompt.version, length: activePrompt.text.length, source: 'supabase' }));
+      return { success: true, version: activePrompt.version, length: activePrompt.text.length, source: 'supabase' };
+    }
+    console.warn(JSON.stringify({ level: 'warn', event: 'prompt_reload_empty', fallback: activePrompt.source }));
+  } catch (error) {
+    console.error(JSON.stringify({ level: 'error', event: 'prompt_reload_failed', error: error.message, fallback: activePrompt.source }));
+  }
+  return { success: false, version: activePrompt.version, length: activePrompt.text.length, source: activePrompt.source };
+}
 const handoffPhrase = 'Vou encaminhar seu atendimento a um de nossos consultores com as informações que você compartilhou, para que ele possa continuar com as opções mais adequadas.';
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -95,7 +120,7 @@ async function complete(messages, context) {
       model: config.openaiModel,
       temperature: 0.2,
       messages: [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: getSystemPrompt() },
         { role: 'system', content: `CONTEXTO E AÇÕES DEFINIDOS PELO BACKEND (fonte de verdade):\n${JSON.stringify(context)}` },
         ...messages.slice(-12),
       ],
@@ -108,7 +133,7 @@ async function complete(messages, context) {
 
 async function recordDecision(sessionId, to, data) {
   console.log(JSON.stringify({ level: 'info', event: 'agent_decision', sessionId, ...data }));
-  await logEvent({ session_id: sessionId, contact_id: to, event_type: 'agent_decision', event_data: data });
+  await logEvent({ session_id: sessionId, contact_id: to, event_type: 'agent_decision', event_data: { prompt_version: getPromptVersion(), ...data } });
 }
 
 function activeProductNames(state) {

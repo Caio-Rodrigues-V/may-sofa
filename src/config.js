@@ -5,6 +5,7 @@ export const config = {
   promptVersion: process.env.PROMPT_VERSION || 'sofas-may-v1',
   openaiKey: process.env.OPENAI_API_KEY || '',
   openaiModel: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+  openaiEmbeddingModel: process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
   redisUrl: process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 'redis'}:${process.env.REDIS_PORT || 6379}/${process.env.REDIS_DB || 0}`,
   sessionTtl: Number(process.env.REDIS_SESSION_TTL || 604800),
   wtsBaseUrl: (process.env.WTS_BASE_URL || 'https://api.wts.chat').replace(/\/$/, ''),

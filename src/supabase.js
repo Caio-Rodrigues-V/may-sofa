@@ -48,7 +48,55 @@ export async function findCommercialRules() {
   return rules.filter((rule) => (!rule.effective_from || new Date(rule.effective_from) <= now) && (!rule.effective_until || new Date(rule.effective_until) >= now));
 }
 
-export async function findKnowledge(query) {
+export const isKnowledgeSemanticEnabled = () => String(process.env.KNOWLEDGE_SEMANTIC_ENABLED || 'false').toLowerCase() === 'true';
+
+export async function fetchQueryEmbedding(text, { fetchImpl = fetch, signal } = {}) {
+  if (!config.openaiKey) throw new Error('openai_api_key_missing');
+  const response = await fetchImpl('https://api.openai.com/v1/embeddings', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${config.openaiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: config.openaiEmbeddingModel, input: text }),
+    signal,
+  });
+  if (!response.ok) throw new Error(`OpenAI Embeddings ${response.status}: ${await response.text()}`);
+  const embedding = (await response.json())?.data?.[0]?.embedding;
+  if (!Array.isArray(embedding)) throw new Error('invalid_embedding_response');
+  return embedding;
+}
+
+export async function matchKnowledgeRpc(embedding, { limit = 6, fetchImpl = fetch, signal } = {}) {
+  const fn = `${config.tablePrefix}match_knowledge`;
+  const response = await fetchImpl(`${config.supabaseUrl}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_embedding: embedding, p_limit: limit }),
+    signal,
+  });
+  if (!response.ok) throw new Error(`RPC ${fn} ${response.status}: ${await response.text()}`);
+  const records = await response.json();
+  return Array.isArray(records) ? records : [];
+}
+
+// Busca semântica nos cards treinados pelo painel; cai para busca por palavras se falhar ou vier vazia.
+export async function findKnowledge(query, { fetchImpl = fetch } = {}) {
+  const text = String(query || '').trim();
+  if (isKnowledgeSemanticEnabled() && text) {
+    try {
+      const signal = AbortSignal.timeout(2500);
+      const embedding = await fetchQueryEmbedding(text, { fetchImpl, signal });
+      const results = filterKnowledgePrices(await matchKnowledgeRpc(embedding, { limit: 6, fetchImpl, signal }));
+      if (results.length > 0) {
+        console.log(JSON.stringify({ level: 'info', event: 'knowledge_retrieved', mode: 'semantic', count: results.length, titles: results.map((item) => item.title) }));
+        return results;
+      }
+    } catch (error) {
+      console.warn(JSON.stringify({ level: 'warn', event: 'knowledge_semantic_failed', error: error?.message, fallback: 'keyword' }));
+    }
+  }
+  return findKnowledgeByKeywords(query);
+}
+
+async function findKnowledgeByKeywords(query) {
   const tokens = normalize(query).split(' ').filter((x) => x.length > 3);
   const knowledge = await rows('knowledge', 'select=topic,title,content,priority&active=eq.true&review_status=eq.approved&order=priority.desc&limit=400');
   const filtered = filterKnowledgePrices(knowledge);
@@ -93,6 +141,11 @@ export async function mediaUrl(media) {
   if (!response.ok) throw new Error(`Supabase storage ${response.status}: ${await response.text()}`);
   const body = await response.json();
   return body.signedURL.startsWith('http') ? body.signedURL : `${config.supabaseUrl}/storage/v1${body.signedURL}`;
+}
+
+export async function findActivePrompt() {
+  const versions = await rows('prompt_versions', 'select=version,prompt_text,active,created_at&active=eq.true&order=created_at.desc&limit=1');
+  return versions?.[0] || null;
 }
 
 export async function logEvent(event) {
