@@ -4,6 +4,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev
 COPY src ./src
+COPY scripts ./scripts
 COPY SYSTEM-PROMPT.txt ./SYSTEM-PROMPT.txt
 
 ENV NODE_ENV=production
