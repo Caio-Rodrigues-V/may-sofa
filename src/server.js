@@ -11,7 +11,12 @@ function json(response, status, body) {
 }
 function authorized(request, url) {
   const bearer = request.headers.authorization?.replace(/^Bearer\s+/i, '').trim();
-  return Boolean(config.webhookSecret) && (bearer === config.webhookSecret || url.searchParams.get('token') === config.webhookSecret);
+  const token = url.searchParams.get('token')?.trim();
+  const allowed = (config.webhookSecret || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return allowed.length > 0 && (allowed.includes(bearer) || allowed.includes(token));
 }
 async function readJson(request) {
   let body = '';
